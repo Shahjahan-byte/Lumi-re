@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumière — World Cinema, Streamed</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<style>
+  :root {
+    --bg-deep: #050510;
+    --bg-mid: #0a0a1f;
+    --bg-glass: rgba(255,255,255,0.04);
+    --border-glass: rgba(255,255,255,0.08);
+    --text-primary: #f5f5f7;
+    --text-secondary: rgba(245,245,247,0.65);
+    --text-muted: rgba(245,245,247,0.4);
+    --accent: #ff3366;
+    --accent-2: #00d9ff;
+    --accent-3: #ffb800;
+    --accent-4: #a855f7;
+  }
+  * { -webkit-font-smoothing: antialiased; box-sizing: border-box; }
+  html, body { background: var(--bg-deep); color: var(--text-primary); font-family: 'Outfit', sans-serif; overflow-x: hidden; margin: 0; }
+  #webgl-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 50% at 15% 0%, rgba(255,51,102,0.18), transparent 50%),
+      radial-gradient(ellipse 80% 50% at 85% 100%, rgba(0,217,255,0.12), transparent 50%),
+      radial-gradient(ellipse 60% 80% at 50% 50%, rgba(255,184,0,0.04), transparent 60%);
+  }
+
+  /* TOP BAR */
+  .top-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 100;
+    width: calc(100% - 24px); max-width: 1600px; padding: 10px 20px;
+    border-radius: 18px; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    background: rgba(10,10,25,0.55); backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%); border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+    transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .top-bar.scrolled { background: rgba(10,10,25,0.85); }
+  .traffic-lights { display: flex; gap: 8px; padding-right: 16px; border-right: 1px solid rgba(255,255,255,0.1); }
+  .traffic-lights .dot { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; transition: all 0.2s; }
+  .traffic-lights .red { background: #ff5f57; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.2); }
+  .traffic-lights .yellow { background: #febc2e; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.2); }
+  .traffic-lights .green { background: #28c840; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.2); }
+  .traffic-lights .dot:hover { transform: scale(1.15); filter: brightness(1.15); }
+  .logo {
+    font-weight: 800; font-size: 22px; letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 0%, #ff3366 50%, #ffb800 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .logo::before {
+    content: ''; width: 9px; height: 9px; background: var(--accent); border-radius: 50%;
+    box-shadow: 0 0 16px var(--accent), 0 0 4px var(--accent); animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
+  .nav-links { display: flex; gap: 4px; align-items: center; }
+  .nav-link { padding: 8px 14px; border-radius: 9px; font-size: 14px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; text-decoration: none; }
+  .nav-link:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+  .nav-link.active { color: var(--text-primary); background: rgba(255,51,102,0.15); }
+  .search-box { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; transition: all 0.3s; min-width: 240px; }
+  .search-box:focus-within { background: rgba(255,255,255,0.08); border-color: rgba(255,51,102,0.4); box-shadow: 0 0 0 4px rgba(255,51,102,0.1); }
+  .search-box input { background: transparent; border: none; outline: none; color: var(--text-primary); font-family: inherit; font-size: 14px; width: 100%; }
+  .search-box input::placeholder { color: var(--text-muted); }
+  .kbd { font-size: 10px; padding: 2px 6px; background: rgba(255,255,255,0.06); border-radius: 4px; color: var(--text-muted); font-family: 'JetBrains Mono'; border: 1px solid rgba(255,255,255,0.05); }
+  .movie-count { font-size: 11px; padding: 4px 10px; background: rgba(255,51,102,0.12); border: 1px solid rgba(255,51,102,0.2); border-radius: 100px; color: var(--accent); font-weight: 600; font-family: 'JetBrains Mono'; white-space: nowrap; }
+
+  /* HERO */
+  .hero { position: relative; z-index: 2; min-height: 100vh; padding: 130px 32px 80px; display: flex; align-items: center; overflow: hidden; }
+  .hero-bg { position: absolute; inset: 0; z-index: -1; background-size: cover; background-position: center; filter: brightness(0.35) saturate(1.3); transition: opacity 0.8s ease; }
+  .hero-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, rgba(5,5,16,0.4) 50%, var(--bg-deep) 100%), linear-gradient(90deg, rgba(5,5,16,0.95) 0%, transparent 70%); }
+  .hero-content { max-width: 1400px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: 1.2fr 1fr; gap: 60px; align-items: center; position: relative; z-index: 2; }
+  .hero-text .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background: rgba(255,51,102,0.12); border: 1px solid rgba(255,51,102,0.3); border-radius: 100px; font-size: 11px; font-weight: 700; color: var(--accent); margin-bottom: 24px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .hero-title { font-size: clamp(48px, 7vw, 92px); font-weight: 900; line-height: 0.95; letter-spacing: -0.04em; margin: 0 0 22px; background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.7) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero-meta { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; font-size: 14px; color: var(--text-secondary); flex-wrap: wrap; }
+  .hero-meta .rating { color: var(--accent-3); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .hero-meta .pill { padding: 4px 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 100px; font-size: 11px; }
+  .hero-desc { font-size: 17px; line-height: 1.65; color: var(--text-secondary); max-width: 580px; margin-bottom: 36px; }
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { padding: 14px 28px; border-radius: 12px; font-weight: 600; font-size: 15px; border: none; cursor: pointer; transition: all 0.3s cubic-bezier(0.16,1,0.3,1); display: inline-flex; align-items: center; gap: 10px; font-family: inherit; }
+  .btn-primary { background: linear-gradient(135deg, var(--accent) 0%, #ff5e8a 100%); color: white; box-shadow: 0 8px 24px rgba(255,51,102,0.4), inset 0 1px 0 rgba(255,255,255,0.2); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(255,51,102,0.55), inset 0 1px 0 rgba(255,255,255,0.3); }
+  .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text-primary); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.12); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.14); transform: translateY(-2px); }
+  .btn-shuffle { background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); color: #c084fc; }
+  .btn-shuffle:hover { background: rgba(168,85,247,0.25); transform: translateY(-2px); }
+
+  /* HERO CARD */
+  .hero-card { perspective: 1200px; height: 480px; position: relative; }
+  .hero-card-inner { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .hero-card-inner img { width: 100%; height: 100%; object-fit: cover; border-radius: 22px; box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1); }
+  .hero-card-glow { position: absolute; inset: -30px; z-index: -1; background: radial-gradient(circle at center, var(--accent) 0%, transparent 70%); filter: blur(50px); opacity: 0.5; animation: glow-pulse 4s ease-in-out infinite; }
+  @keyframes glow-pulse { 0%,100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0.65; transform: scale(1.05); } }
+  .hero-indicators { position: absolute; bottom: 40px; right: 32px; display: flex; gap: 6px; z-index: 5; }
+  .hero-indicator { width: 24px; height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer; transition: all 0.4s; }
+  .hero-indicator.active { background: var(--accent); width: 40px; box-shadow: 0 0 12px var(--accent); }
+
+  /* SECTIONS */
+  .section { position: relative; z-index: 2; padding: 60px 32px; max-width: 1400px; margin: 0 auto; }
+  .section-header { display: flex; align-items: end; justify-content: space-between; margin-bottom: 28px; }
+  .section-title { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 14px; margin: 0; }
+  .section-title::before { content: ''; width: 4px; height: 28px; background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-radius: 2px; box-shadow: 0 0 12px var(--accent); }
+  .section-link { color: var(--text-secondary); font-size: 14px; font-weight: 500; cursor: pointer; transition: color 0.2s; display: flex; align-items: center; gap: 6px; }
+  .section-link:hover { color: var(--accent); }
+
+  /* FILTERS */
+  .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .filter-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; flex: 1; }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-family: 'JetBrains Mono'; white-space: nowrap; padding: 8px 0; }
+  .genre-pill { padding: 8px 18px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 100px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .genre-pill:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+  .genre-pill.active { background: rgba(255,51,102,0.15); border-color: rgba(255,51,102,0.4); color: var(--accent); box-shadow: 0 0 20px rgba(255,51,102,0.15); }
+  .lang-pill { padding: 6px 14px; background: rgba(0,217,255,0.04); border: 1px solid rgba(0,217,255,0.08); border-radius: 100px; font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .lang-pill:hover { background: rgba(0,217,255,0.08); color: var(--text-primary); }
+  .lang-pill.active { background: rgba(0,217,255,0.12); border-color: rgba(0,217,255,0.35); color: var(--accent-2); box-shadow: 0 0 16px rgba(0,217,255,0.12); }
+
+  /* MOVIE GRID */
+  .movie-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+  .movie-card {
+    position: relative; aspect-ratio: 2 / 3; border-radius: 18px; overflow: hidden; cursor: pointer;
+    transition: transform 0.5s cubic-bezier(0.16,1,0.3,1), box-shadow 0.5s; transform-style: preserve-3d;
+    background: var(--bg-glass); border: 1px solid rgba(255,255,255,0.06); will-change: transform;
+  }
+  .movie-card-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s cubic-bezier(0.16,1,0.3,1), filter 0.4s; }
+  .movie-card:hover .movie-card-poster { transform: scale(1.08); filter: brightness(0.4); }
+  .movie-card:hover { box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,51,102,0.3), 0 0 40px rgba(255,51,102,0.15); z-index: 10; }
+  .movie-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle 200px at var(--mx, 50%) var(--my, 50%), rgba(255,51,102,0.18), transparent 70%);
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 2;
+  }
+  .movie-card:hover::after { opacity: 1; }
+  .movie-card-overlay { position: absolute; inset: 0; padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; background: linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.95) 100%); opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 3; }
+  .movie-card:hover .movie-card-overlay { opacity: 1; }
+  .movie-card-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; transform: translateY(20px); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .movie-card-meta { font-size: 11px; color: var(--text-secondary); display: flex; gap: 10px; align-items: center; transform: translateY(20px); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s; flex-wrap: wrap; }
+  .movie-card:hover .movie-card-title, .movie-card:hover .movie-card-meta { transform: translateY(0); }
+  .movie-card-rating { color: var(--accent-3); font-weight: 700; display: flex; align-items: center; gap: 4px; }
+  .movie-card-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.4); width: 56px; height: 56px; border-radius: 50%; background: rgba(255,51,102,0.95); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; opacity: 0; transition: all 0.5s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 10px 30px rgba(255,51,102,0.5); z-index: 3; }
+  .movie-card:hover .movie-card-play { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .movie-card-genre { position: absolute; top: 12px; left: 12px; padding: 4px 10px; background: rgba(0,0,0,0.65); backdrop-filter: blur(10px); border-radius: 100px; font-size: 10px; font-weight: 600; color: var(--accent-2); border: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; letter-spacing: 0.08em; z-index: 3; }
+  .movie-card-lang { position: absolute; top: 12px; right: 12px; padding: 4px 8px; background: rgba(0,0,0,0.65); backdrop-filter: blur(10px); border-radius: 6px; font-size: 9px; font-weight: 700; color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; letter-spacing: 0.05em; z-index: 3; opacity: 0; transition: opacity 0.3s; }
+  .movie-card:hover .movie-card-lang { opacity: 1; }
+  .movie-card-bookmark { position: absolute; bottom: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; color: var(--text-primary); font-size: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: all 0.2s; opacity: 0; z-index: 4; }
+  .movie-card:hover .movie-card-bookmark { opacity: 1; }
+  .movie-card-bookmark:hover { background: var(--accent); color: white; transform: scale(1.1); }
+  .movie-card-bookmark.saved { background: var(--accent); color: white; opacity: 1; }
+
+  /* DOCK */
+  .dock { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 100; padding: 8px; background: rgba(20,20,40,0.5); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; display: flex; gap: 6px; box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .dock-item { width: 50px; height: 50px; border-radius: 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), background 0.2s, color 0.2s; color: var(--text-secondary); font-size: 20px; position: relative; }
+  .dock-item:hover { background: rgba(255,255,255,0.12); color: var(--accent); }
+  .dock-item.active { background: rgba(255,51,102,0.15); color: var(--accent); border-color: rgba(255,51,102,0.3); }
+  .dock-item::after { content: attr(data-label); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-10px); padding: 5px 10px; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); border-radius: 8px; font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s 0.3s; border: 1px solid rgba(255,255,255,0.08); }
+  .dock-item:hover::after { opacity: 1; }
+  .dock-divider { width: 1px; background: rgba(255,255,255,0.08); margin: 6px 4px; }
+
+  /* PLAYER MODAL */
+  .player-modal { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.92); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); display: none; align-items: center; justify-content: center; padding: 40px; opacity: 0; transition: opacity 0.4s; }
+  .player-modal.active { display: flex; opacity: 1; }
+  .player-container { width: 100%; max-width: 1280px; background: rgba(20,20,40,0.7); border-radius: 24px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(255,51,102,0.08); transform: scale(0.95); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); display: flex; flex-direction: column; }
+  .player-modal.active .player-container { transform: scale(1); }
+  .player-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+  .player-header-left { display: flex; align-items: center; gap: 14px; }
+  .player-mini-lights { display: flex; gap: 6px; }
+  .player-mini-lights .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .player-title { font-weight: 700; font-size: 16px; }
+  .player-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: 'JetBrains Mono'; }
+  .player-close { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.08); border: none; color: var(--text-primary); cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .player-close:hover { background: var(--accent); transform: rotate(90deg); }
+  .player-frame-wrapper { position: relative; aspect-ratio: 16/9; background: #000; flex: 1; }
+  .player-frame { width: 100%; height: 100%; border: none; display: block; }
+  .player-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--text-muted); font-size: 14px; font-family: 'JetBrains Mono'; }
+  .player-loading .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .player-sources { padding: 12px 16px; display: flex; gap: 6px; border-top: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+  .source-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-right: 4px; font-family: 'JetBrains Mono'; }
+  .source-btn { padding: 6px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; font-family: inherit; }
+  .source-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+  .source-btn.active { background: rgba(255,51,102,0.15); border-color: rgba(255,51,102,0.4); color: var(--accent); box-shadow: 0 0 12px rgba(255,51,102,0.15); }
+
+  /* SEARCH RESULTS */
+  .search-results { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-10px); width: calc(100% - 32px); max-width: 720px; max-height: 70vh; overflow-y: auto; z-index: 99; background: rgba(15,15,30,0.9); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: none; opacity: 0; transition: all 0.3s; }
+  .search-results.active { display: block; opacity: 1; transform: translateX(-50%) translateY(0); }
+  .search-result-item { display: flex; gap: 12px; padding: 10px; border-radius: 12px; cursor: pointer; transition: background 0.2s; align-items: center; }
+  .search-result-item:hover { background: rgba(255,255,255,0.06); }
+  .search-result-item img { width: 50px; height: 75px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+  .search-empty { padding: 30px; text-align: center; color: var(--text-muted); font-size: 14px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); z-index: 300; padding: 12px 22px; background: rgba(20,20,40,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: var(--text-primary); font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: all 0.3s; display: flex; align-items: center; gap: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+  /* REVEAL */
+  .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.8s, transform 0.8s cubic-bezier(0.16,1,0.3,1); }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* FOOTER */
+  footer { position: relative; z-index: 2; padding: 80px 32px 140px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 60px; }
+  footer .footer-content { max-width: 800px; margin: 0 auto; }
+  footer .footer-links { display: flex; justify-content: center; gap: 28px; font-size: 13px; color: var(--text-muted); margin-top: 32px; flex-wrap: wrap; }
+  footer .footer-links a { cursor: pointer; transition: color 0.2s; }
+  footer .footer-links a:hover { color: var(--accent); }
+
+  /* MOBILE */
+  @media (max-width: 900px) {
+    .hero-content { grid-template-columns: 1fr; }
+    .hero-card { height: 380px; max-width: 320px; }
+    .top-bar { flex-wrap: wrap; gap: 12px; padding: 10px 14px; }
+    .nav-links { order: 3; width: 100%; justify-content: center; overflow-x: auto; }
+    .nav-links::-webkit-scrollbar { display: none; }
+    .search-box { min-width: 0; flex: 1; }
+    .hero { padding: 160px 20px 60px; }
+    .section { padding: 40px 20px; }
+    .movie-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .hero-indicators { right: 20px; bottom: 30px; }
+    .player-modal { padding: 0; }
+    .player-container { border-radius: 0; min-height: 100vh; }
+    .dock-item { width: 44px; height: 44px; }
+    .movie-count { display: none; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="webgl-bg"></canvas>
+
+  <header class="top-bar" id="topBar">
+    <div class="flex items-center gap-4">
+      <div class="traffic-lights">
+        <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+      </div>
+      <div class="logo">Lumière</div>
+      <span class="movie-count" id="movieCount">0 Films</span>
+    </div>
+    <nav class="nav-links">
+      <a class="nav-link active" data-filter="all">Discover</a>
+      <a class="nav-link" data-filter="trending">Trending</a>
+      <a class="nav-link" data-filter="top-rated">Top Rated</a>
+      <a class="nav-link" data-filter="new">New</a>
+      <a class="nav-link" data-filter="mylist">My List</a>
+    </nav>
+    <div class="search-box">
+      <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); font-size: 13px;"></i>
+      <input type="text" id="searchInput" placeholder="Search films, genres, languages...">
+      <span class="kbd">⌘K</span>
+    </div>
+  </header>
+
+  <div class="search-results" id="searchResults"></div>
+
+  <section class="hero" id="hero">
+    <div class="hero-bg" id="heroBg"></div>
+    <div class="hero-content">
+      <div class="hero-text">
+        <div class="badge"><i class="fa-solid fa-bolt"></i><span id="heroBadge">Featured Premiere</span></div>
+        <h1 class="hero-title" id="heroTitle">Loading cinema...</h1>
+        <div class="hero-meta">
+          <span class="rating"><i class="fa-solid fa-star"></i> <span id="heroRating">—</span></span>
+          <span id="heroYear">—</span>
+          <span class="pill" id="heroDuration">— min</span>
+          <span id="heroGenres">—</span>
+          <span class="pill" id="heroLang">—</span>
+        </div>
+        <p class="hero-desc" id="heroDesc"></p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="heroPlayBtn"><i class="fa-solid fa-play"></i> Watch Now</button>
+          <button class="btn btn-secondary" id="heroDetailsBtn"><i class="fa-solid fa-circle-info"></i> More Info</button>
+          <button class="btn btn-shuffle" id="heroShuffleBtn"><i class="fa-solid fa-shuffle"></i> Surprise Me</button>
+        </div>
+      </div>
+      <div class="hero-card" id="heroCard">
+        <div class="hero-card-glow"></div>
+        <div class="hero-card-inner"><img id="heroPoster" src="" alt="Featured poster"></div>
+      </div>
+    </div>
+    <div class="hero-indicators" id="heroIndicators"></div>
+  </section>
+
+  <section class="section" style="padding-top: 20px; padding-bottom: 20px;">
+    <div class="filter-bar">
+      <span class="filter-label">Genre</span>
+      <div class="filter-row" id="genrePills">
+        <div class="genre-pill active" data-genre="all">All</div>
+        <div class="genre-pill" data-genre="Sci-Fi">Sci-Fi</div>
+        <div class="genre-pill" data-genre="Action">Action</div>
+        <div class="genre-pill" data-genre="Drama">Drama</div>
+        <div class="genre-pill" data-genre="Thriller">Thriller</div>
+        <div class="genre-pill" data-genre="Animation">Animation</div>
+        <div class="genre-pill" data-genre="Crime">Crime</div>
+        <div class="genre-pill" data-genre="Adventure">Adventure</div>
+        <div class="genre-pill" data-genre="Comedy">Comedy</div>
+        <div class="genre-pill" data-genre="Fantasy">Fantasy</div>
+        <div class="genre-pill" data-genre="Horror">Horror</div>
+        <div class="genre-pill" data-genre="Romance">Romance</div>
+        <div class="genre-pill" data-genre="Mystery">Mystery</div>
+        <div class="genre-pill" data-genre="War">War</div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <span class="filter-label">Language</span>
+      <div class="filter-row" id="langPills">
+        <div class="lang-pill active" data-lang="all">All Languages</div>
+        <div class="lang-pill" data-lang="English">English</div>
+        <div class="lang-pill" data-lang="Hindi">Hindi</div>
+        <div class="lang-pill" data-lang="Korean">Korean</div>
+        <div class="lang-pill" data-lang="Japanese">Japanese</div>
+        <div class="lang-pill" data-lang="Spanish">Spanish</div>
+        <div class="lang-pill" data-lang="French">French</div>
+        <div class="lang-pill" data-lang="Italian">Italian</div>
+        <div class="lang-pill" data-lang="German">German</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section reveal">
+    <div class="section-header">
+      <h2 class="section-title">Trending Now</h2>
+      <a class="section-link">View All <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+    <div class="movie-grid" id="trendingGrid"></div>
+  </section>
+
+  <section class="section reveal">
+    <div class="section-header">
+      <h2 class="section-title">New Releases</h2>
+      <a class="section-link">View All <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+    <div class="movie-grid" id="newReleasesGrid"></div>
+  </section>
+
+  <section class="section reveal">
+    <div class="section-header">
+      <h2 class="section-title">Critically Acclaimed</h2>
+      <a class="section-link">View All <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+    <div class="movie-grid" id="topRatedGrid"></div>
+  </section>
+
+  <footer>
+    <div class="footer-content">
+      <div class="logo" style="justify-content: center; margin-bottom: 24px;">Lumière</div>
+      <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.7; max-width: 540px; margin: 0 auto;">
+        Crafted with passion for cinema. A streaming experience designed to feel like an art form — where every frame matters. Hollywood, Bollywood, and world cinema — all in one place.
+      </p>
+      <div class="footer-links"><a>About</a><a>Privacy</a><a>Terms</a><a>Help</a><a>Contact</a></div>
+      <div style="margin-top: 40px; font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono';">© 2024 LUMIÈRE · ALL STREAMING CONTENT VIA THIRD-PARTY PROVIDERS</div>
+    </div>
+  </footer>
+
+  <div class="dock" id="dock">
+    <div class="dock-item active" data-label="Discover"><i class="fa-solid fa-house"></i></div>
+    <div class="dock-item" data-label="Search"><i class="fa-solid fa-magnifying-glass"></i></div>
+    <div class="dock-item" data-label="Shuffle"><i class="fa-solid fa-shuffle"></i></div>
+    <div class="dock-item" data-label="Trending"><i class="fa-solid fa-fire"></i></div>
+    <div class="dock-divider"></div>
+    <div class="dock-item" data-label="My List"><i class="fa-solid fa-bookmark"></i></div>
+    <div class="dock-item" data-label="History"><i class="fa-solid fa-clock-rotate-left"></i></div>
+    <div class="dock-divider"></div>
+    <div class="dock-item" data-label="Settings"><i class="fa-solid fa-gear"></i></div>
+  </div>
+
+  <div class="player-modal" id="playerModal">
+    <div class="player-container">
+      <div class="player-header">
+        <div class="player-header-left">
+          <div class="player-mini-lights"><span class="dot" style="background:#ff5f57;"></span><span class="dot" style="background:#febc2e;"></span><span class="dot" style="background:#28c840;"></span></div>
+          <div>
+            <div class="player-title" id="playerTitle">Movie Title</div>
+            <div class="player-sub" id="playerSub">Now Streaming · 4K HDR</div>
+          </div>
+        </div>
+        <button class="player-close" id="playerClose" aria-label="Close player"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="player-frame-wrapper">
+        <div class="player-loading" id="playerLoading"><div class="spinner"></div><div>Establishing secure stream...</div></div>
+        <iframe class="player-frame" id="playerFrame" src="" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="origin"></iframe>
+      </div>
+      <div class="player-sources">
+        <span class="source-label">Server</span>
+        <button class="source-btn active" data-source="cinezo">Cinezo</button>
+        <button class="source-btn" data-source="cinezo_imdb">Cinezo V2</button>
+        <button class="source-btn" data-source="vidsrc">VidSrc</button>
+        <button class="source-btn" data-source="vidsrcxyz">VidSrc.xyz</button>
+        <button class="source-btn" data-source="vidsrcpro">VidSrc.pro</button>
+        <button class="source-btn" data-source="2embed">2Embed</button>
+        <button class="source-btn" data-source="embedsu">Embed.su</button>
+        <button class="source-btn" data-source="smashy">SmashyStream</button>
+        <button class="source-btn" data-source="embedsito">Embedsito</button>
+        <button class="source-btn" data-source="multiembed">MultiEmbed</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"><i class="fa-solid fa-circle-check" style="color: #28c840;"></i><span id="toastText">Added to your list</span></div>
+
+<script type="module">
+  import * as THREE from 'three';
+
+  const IMG = "https://image.tmdb.org/t/p";
+  const posterUrl = (path, size = "w500") => path ? `${IMG}/${size}${path}` : `https://picsum.photos/seed/${Math.random()}/500/750`;
+  const backdropUrl = (path, size = "original") => path ? `${IMG}/${size}${path}` : `https://picsum.photos/seed/${Math.random()}/1920/1080`;
+
+  // ============================================================
+  // MOVIE DATABASE — 60+ films across all languages & genres
+  // ============================================================
+  const movies = [
+    // --- HOLLYWOOD: Sci-Fi ---
+    { id: 157336, imdb: "tt0816692", title: "Interstellar", year: 2014, rating: 8.4, duration: 169, lang: "English", genres: ["Sci-Fi","Adventure","Drama"], overview: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.", poster: "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", backdrop: "/pbrkL804c8yAv3zBZR9Q8MedUzi.jpg", category: "top-rated", featured: true },
+    { id: 335984, imdb: "tt1856101", title: "Blade Runner 2049", year: 2017, rating: 7.6, duration: 164, lang: "English", genres: ["Sci-Fi","Drama","Mystery"], overview: "Young Blade Runner K's discovery of a long-buried secret leads him to track down former Blade Runner Rick Deckard.", poster: "/gajva2i0h68i8arbx0lvte9y7r9.jpg", backdrop: "/ilrZsKbcurEznKKaUNRZTrM4BKM.jpg", category: "top-rated", featured: true },
+    { id: 329865, imdb: "tt2543164", title: "Arrival", year: 2016, rating: 7.9, duration: 116, lang: "English", genres: ["Sci-Fi","Drama","Mystery"], overview: "A linguist works with the military to communicate with alien lifeforms after twelve mysterious spacecraft appear around the world.", poster: "/x2FJsf1ElAgr63Y3vPtKncf1ycT.jpg", backdrop: "/yIZ1xendyqKvY4v5UtE4YKo2tbM.jpg", category: "top-rated" },
+    { id: 76341, imdb: "tt1392190", title: "Mad Max: Fury Road", year: 2015, rating: 7.6, duration: 120, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search for her homeland with the aid of a group of female prisoners.", poster: "/8tZYtuWezp8JbcsvHYO0O467Fyt.jpg", backdrop: "/gqrnQA6Xppdl8vIb2eJc58VC1tW.jpg", category: "top-rated" },
+    { id: 603, imdb: "tt0133093", title: "The Matrix", year: 1999, rating: 8.2, duration: 136, lang: "English", genres: ["Action","Sci-Fi"], overview: "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.", poster: "/f89U3ADr1oiB1s9GckPO37ZtK3h.jpg", backdrop: "/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg", category: "top-rated" },
+    { id: 20894, imdb: "tt1136608", title: "District 9", year: 2009, rating: 7.4, duration: 112, lang: "English", genres: ["Sci-Fi","Action","Thriller"], overview: "An extraterrestrial race forced to live in slum-like conditions on Earth suddenly finds a kindred spirit in a government agent.", poster: "/uz7HZs7JaPjXFGO6SnBaj3Ff8Tk.jpg", backdrop: "/3ucBwlkt6nFw5hT5r7IFv5jtFvh.jpg", category: "top-rated" },
+    { id: 137113, imdb: "tt1631867", title: "Edge of Tomorrow", year: 2014, rating: 7.6, duration: 113, lang: "English", genres: ["Action","Sci-Fi"], overview: "A soldier fighting aliens gets to relive the same day over and over again, the day restarting every time he dies.", poster: "/uUHvm7qV1BQ7keIIe2Zm4YUqWkg.jpg", backdrop: "/5GUiNQirGqHc9Qt4aI4mH4NQj0N.jpg", category: "trending" },
+    { id: 264660, imdb: "tt0470752", title: "Ex Machina", year: 2014, rating: 7.6, duration: 108, lang: "English", genres: ["Sci-Fi","Drama","Thriller"], overview: "A young programmer is selected to participate in a ground-breaking experiment in synthetic intelligence by evaluating the human qualities of a highly advanced humanoid A.I.", poster: "/veSPI7yfYmXxeoLVPaOPlb6MMxq.jpg", backdrop: "/7O4iVfOMQmdCSxhOg0Wi4mMk1d3.jpg", category: "top-rated" },
+    { id: 399174, imdb: "tt5052448", title: "Get Out", year: 2017, rating: 7.4, duration: 104, lang: "English", genres: ["Horror","Thriller","Mystery"], overview: "A young African-American visits his white girlfriend's parents for the weekend, where his simmering uneasiness about their reception of him eventually reaches a boiling point.", poster: "/tFXcEccSQMf3lfhfXKZVb6g9CM2.jpg", backdrop: "/lLqdh3z6yKHr5Ay7Hd2Jb6esNde.jpg", category: "top-rated" },
+    { id: 62536, imdb: "tt1457767", title: "The Conjuring", year: 2013, rating: 7.2, duration: 112, lang: "English", genres: ["Horror","Thriller","Mystery"], overview: "Paranormal investigators Ed and Lorraine Warren work to help a family terrorized by a dark presence in their farmhouse.", poster: "/wVYREutTvI2tmxr6ujrHT704wGF.jpg", backdrop: "/3rsB0kZBYpx4n5Bj7RDrcT8a79e.jpg", category: "trending" },
+    { id: 493922, imdb: "tt7784604", title: "Hereditary", year: 2018, rating: 7.0, duration: 127, lang: "English", genres: ["Horror","Drama","Mystery"], overview: "A grieving family is haunted by tragic and disturbing occurrences after the death of their secretive grandmother.", poster: "/lJloTOheuQSirSLXNA3JHsrMNfH.jpg", backdrop: "/l1uIh4Wftk6t7BjhV0lYOhz8w6O.jpg", category: "top-rated" },
+    { id: 740985, imdb: "tt1392170", title: "It", year: 2017, rating: 7.2, duration: 135, lang: "English", genres: ["Horror","Thriller","Fantasy"], overview: "In the summer of 1989, a group of bullied kids band together to destroy a shape-shifting monster, which disguises itself as a clown and preys on the children of Derry.", poster: "/9E2hdZZYQm8XmsBwd8tj4X4ck5A.jpg", backdrop: "/rtW4uNkN3qfC7eyf2s7fn7nRRiy.jpg", category: "trending" },
+    { id: 447332, imdb: "tt6644200", title: "A Quiet Place", year: 2018, rating: 7.2, duration: 90, lang: "English", genres: ["Horror","Thriller","Sci-Fi"], overview: "A family is forced to live in silence while hiding from creatures that hunt by sound.", poster: "/nAU74GmpUk7tHrvjUmVpjQbm6eF.jpg", backdrop: "/tmu7cyHevKQ5u1OtSbnvvRZo0uZ.jpg", category: "trending" },
+    { id: 348, imdb: "tt0070047", title: "The Exorcist", year: 1973, rating: 7.7, duration: 132, lang: "English", genres: ["Horror","Drama","Thriller"], overview: "When a 12-year-old girl is possessed by a mysterious entity, her mother seeks the help of two priests to save her.", poster: "/4Jc2V8INe0qXlfPTexGbxxFnjpO.jpg", backdrop: "/wbe4RW0tNYjJQDmYxH8zw9e7XKm.jpg", category: "top-rated" },
+    { id: 694, imdb: "tt0081505", title: "The Shining", year: 1980, rating: 8.0, duration: 146, lang: "English", genres: ["Horror","Drama","Thriller"], overview: "A family heads to an isolated hotel for the winter where a sinister presence influences the father into violence.", poster: "/b6ko0IKC8MdYBBPkkA1aBPLe2yz.jpg", backdrop: "/uIp1bKxBKL08rUWx2dpsxnnUWPa.jpg", category: "top-rated" },
+    // --- HOLLYWOOD: Comedy ---
+    { id: 8165, imdb: "tt0829482", title: "Superbad", year: 2007, rating: 7.1, duration: 98, lang: "English", genres: ["Comedy","Drama"], overview: "Two co-dependent high school seniors are forced to deal with separation anxiety after their plan to stage a booze-soaked party goes awry.", poster: "/ek8e8txUyU22x0F3KqVjItYHeVF.jpg", backdrop: "/8n7O6XQ7gQ3Ie2rz2H2t7VU6CPT.jpg", category: "trending" },
+    { id: 770, imdb: "tt1119646", title: "The Hangover", year: 2009, rating: 7.3, duration: 100, lang: "English", genres: ["Comedy","Adventure"], overview: "Three buddies wake up from a bachelor party in Las Vegas, with no memory of the previous night and the bachelor missing.", poster: "/uluhlXubGu1VxU63X9VHCLWDAYP.jpg", backdrop: "/ah3e6XNoPIkcqx8dQopAdp2j14V.jpg", category: "trending" },
+    { id: 10828, imdb: "tt0838280", title: "Step Brothers", year: 2008, rating: 6.9, duration: 98, lang: "English", genres: ["Comedy"], overview: "Two aimless middle-aged losers still living at home are forced against their will to become roommates when their parents marry.", poster: "/iGD1r0geRBCv1Ken6FCGoHfO8Gz.jpg", backdrop: "/lqOSh7nHqLhXgFlSfwt3zx9Ks9r.jpg", category: "new" },
+    { id: 115, imdb: "tt0118715", title: "The Big Lebowski", year: 1998, rating: 7.6, duration: 117, lang: "English", genres: ["Comedy","Crime"], overview: "Jeff 'The Dude' Lebowski, mistaken for a millionaire of the same name, seeks restitution for his ruined rug and becomes entangled in the millionaire's wife's kidnapping.", poster: "/d4ftZuMTPjAuX6Q4RrzZNg6d8zG.jpg", backdrop: "/l4ZqQ2J6C0qQ1kXm5r3KqQG3z6s.jpg", category: "top-rated" },
+    { id: 293660, imdb: "tt1431045", title: "Deadpool", year: 2016, rating: 7.6, duration: 108, lang: "English", genres: ["Action","Comedy","Adventure"], overview: "A wisecracking mercenary gets experimented on and becomes immortal but ugly, and sets out to track down the man who ruined his looks.", poster: "/3E53WEZJXxKfHtEqPDVxe7Aq7w4.jpg", backdrop: "/8S6Hr7e9c4a2q5Xb0q4c1e2n3a4.jpg", category: "trending" },
+    // --- HOLLYWOOD: Drama/Crime/Thriller ---
+    { id: 238, imdb: "tt0068646", title: "The Godfather", year: 1972, rating: 8.7, duration: 175, lang: "English", genres: ["Drama","Crime"], overview: "The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.", poster: "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg", backdrop: "/tmU7GeKVybMWFButWEG8BQhngVx.jpg", category: "top-rated", featured: true },
+    { id: 278, imdb: "tt0111161", title: "The Shawshank Redemption", year: 1994, rating: 8.7, duration: 142, lang: "English", genres: ["Drama","Crime"], overview: "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.", poster: "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg", backdrop: "/kXfqcdQKsToO0OUXHcrrNCHDBec.jpg", category: "top-rated", featured: true },
+    { id: 155, imdb: "tt0468569", title: "The Dark Knight", year: 2008, rating: 8.5, duration: 152, lang: "English", genres: ["Action","Crime","Drama"], overview: "Batman raises the stakes in his war on crime with the help of Lt. Jim Gordon and DA Harvey Dent.", poster: "/qJ2tW6WMUDux911r6m7haRef0WH.jpg", backdrop: "/hqkIcbrOHL86UncnHIsHVcVmzue.jpg", category: "top-rated", featured: true },
+    { id: 24428, imdb: "tt0848228", title: "The Avengers", year: 2012, rating: 7.7, duration: 143, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "Earth's mightiest heroes must come together to stop the mischievous Loki and his alien army from enslaving humanity.", poster: "/RYMX2wcKCBAr24X2KsAemvR5m0V.jpg", backdrop: "/9BBTo63ANSmhCisq5r2A4KxvB3K.jpg", category: "top-rated" },
+    { id: 299536, imdb: "tt4154756", title: "Avengers: Infinity War", year: 2018, rating: 8.3, duration: 149, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "The Avengers fight to stop Thanos from collecting the six Infinity Stones and destroying half the universe.", poster: "/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", backdrop: "/lmZFxXgJE3vgrcihpDkx8XaR8yT.jpg", category: "top-rated", featured: true },
+    { id: 299534, imdb: "tt4154796", title: "Avengers: Endgame", year: 2019, rating: 8.3, duration: 181, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "After the devastating events of Infinity War, the Avengers assemble once more to reverse Thanos' actions.", poster: "/or06FN3Dka5tukK1e9sl16pB3iy.jpg", backdrop: "/7RyHsO4yDXtBv1zUU3mIpIr0Whx.jpg", category: "top-rated", featured: true },
+    { id: 634649, imdb: "tt10872600", title: "Spider-Man: No Way Home", year: 2021, rating: 8.0, duration: 148, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "With Spider-Man's identity now revealed, Peter asks Doctor Strange for help — only to fracture the multiverse.", poster: "/1g0dhYtq4irTYVGPr5qO8nuMJ4u.jpg", backdrop: "/14QbnygCuTO0vl7CAFmPf1fgZfV.jpg", category: "trending" },
+    { id: 569094, imdb: "tt9362722", title: "Spider-Man: Across the Spider-Verse", year: 2023, rating: 8.4, duration: 140, lang: "English", genres: ["Animation","Action","Adventure"], overview: "Miles Morales is launched across the multiverse where he encounters a team of Spider-People charged with protecting its existence.", poster: "/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg", backdrop: "/4HodYYKEIsGOdinkGi2Ucz6XJi0.jpg", category: "trending", featured: true },
+    { id: 680, imdb: "tt0110912", title: "Pulp Fiction", year: 1994, rating: 8.5, duration: 154, lang: "English", genres: ["Crime","Thriller"], overview: "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.", poster: "/d5iIlmf5khcjnBl2n3NofDKCeXw.jpg", backdrop: "/suaEOtk1N1sgCY2euD3NQjpE5lG.jpg", category: "top-rated" },
+    { id: 769, imdb: "tt0099685", title: "Goodfellas", year: 1990, rating: 8.4, duration: 146, lang: "English", genres: ["Crime","Drama"], overview: "The story of Henry Hill and his life in the mob, covering his relationship with his wife and his mob partners.", poster: "/aKcCiQDR7OEpuZt5Pm5g9K2hTU9.jpg", backdrop: "/sw7mordbZxgITU877yTpZCui90f.jpg", category: "top-rated" },
+    { id: 807, imdb: "tt0114369", title: "Se7en", year: 1995, rating: 8.4, duration: 127, lang: "English", genres: ["Crime","Mystery","Thriller"], overview: "Two detectives hunt a serial killer who uses the seven deadly sins as his motives.", poster: "/6yoghtyTpznpBik8EngEmJskVUO.jpg", backdrop: "/ba4CpvnaxvAgTx2ySyAqSV6OMzU.jpg", category: "top-rated" },
+    { id: 142, imdb: "tt0407887", title: "The Departed", year: 2006, rating: 8.2, duration: 151, lang: "English", genres: ["Crime","Drama","Thriller"], overview: "An undercover cop and a mole in the police try to identify each other while infiltrating an Irish gang.", poster: "/nT97ifVT2J1yMQmeq20Qblg61L.jpg", backdrop: "/cw9bxkA2DZFS0taHncqOIyVRnWa.jpg", category: "top-rated" },
+    { id: 77, imdb: "tt0209144", title: "Memento", year: 2000, rating: 8.2, duration: 113, lang: "English", genres: ["Mystery","Thriller"], overview: "A man with short-term memory loss attempts to track down his wife's murderer.", poster: "/yuNsBlhftumwxonsid0XO2RW7eO.jpg", backdrop: "/4X0ZbPMkQRv6mBss5sN2R3lR8xK.jpg", category: "top-rated" },
+    { id: 475557, imdb: "tt7286456", title: "Joker", year: 2019, rating: 8.2, duration: 122, lang: "English", genres: ["Crime","Thriller","Drama"], overview: "A failed stand-up comedian is driven insane and becomes the Joker.", poster: "/udDclJoHjfjb8Ekgsd4EDteXlYM.jpg", backdrop: "/n6bUvigpRFqSwmPp1m2YADdbRBc.jpg", category: "top-rated" },
+    { id: 496243, imdb: "tt6751668", title: "Parasite", year: 2019, rating: 8.5, duration: 132, lang: "Korean", genres: ["Comedy","Thriller","Drama"], overview: "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.", poster: "/7IiTTgloJzjGI7T2Nv7iLjRwQ7r.jpg", backdrop: "/TU9NIjwzjoKPwQHoHshkFcqUCO.jpg", category: "top-rated", featured: true },
+    { id: 106646, imdb: "tt0993846", title: "The Wolf of Wall Street", year: 2013, rating: 8.0, duration: 180, lang: "English", genres: ["Crime","Drama","Comedy"], overview: "Based on the true story of Jordan Belfort, from his rise to a wealthy stock-broker living the high life to his fall involving crime and corruption.", poster: "/34m2pteeGcLatgx706e3VCiqn4e.jpg", backdrop: "/5Gx4jTusLFnKUUlMPlDzxGhZU1e.jpg", category: "top-rated" },
+    { id: 13, imdb: "tt0109830", title: "Forrest Gump", year: 1994, rating: 8.5, duration: 142, lang: "English", genres: ["Comedy","Drama","Romance"], overview: "The history of the United States from the 1950s to the '70s unfolds from the perspective of an Alabama man with an IQ of 75.", poster: "/saHP97rTPS5eLmrLQEcANmKrsFl.jpg", backdrop: "/3h1JZGDlTQ4jOBgzVcM9r6L5Qwt.jpg", category: "top-rated", featured: true },
+    { id: 244286, imdb: "tt2582802", title: "Whiplash", year: 2014, rating: 8.3, duration: 106, lang: "English", genres: ["Drama","Thriller"], overview: "A promising young drummer enrolls at a cut-throat music conservatory where his dreams of greatness are mentored by an instructor who will stop at nothing to realize a student's potential.", poster: "/7fn624j5lj3xTme2SgiLCeableds.jpg", backdrop: "/6bbZ6XyYf3jzn4j4nj7l3dZ2R5y.jpg", category: "top-rated" },
+    { id: 313369, imdb: "tt3783968", title: "La La Land", year: 2016, rating: 7.6, duration: 128, lang: "English", genres: ["Romance","Drama","Comedy"], overview: "While navigating their careers in Los Angeles, a pianist and an actress fall in love while attempting to reconcile their aspirations.", poster: "/uDO8zWDhfWUZ1l7uhU5Pr2mHeaI.jpg", backdrop: "/fp6X6yhgcxzxCpmM0EVC6V9B8XB.jpg", category: "top-rated" },
+    { id: 27205, imdb: "tt1375666", title: "Inception", year: 2010, rating: 8.4, duration: 148, lang: "English", genres: ["Action","Sci-Fi","Adventure"], overview: "A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.", poster: "/9gk7adHYeDvHkCSEqAvqNLV5Uge.jpg", backdrop: "/s3TArRGBDhjlsFHdF25RuePhwPn.jpg", category: "top-rated", featured: true },
+    { id: 157336, imdb: "tt0816692", title: "Interstellar", year: 2014, rating: 8.4, duration: 169, lang: "English", genres: ["Adventure","Drama","Sci-Fi"], overview: "A group of explorers make use of a newly discovered rift in space-time to surpass the limits on human space travel.", poster: "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", backdrop: "/pbrkL804c8yAv3zBZR9Q8MedUzi.jpg", category: "top-rated", featured: true },
+    { id: 597, imdb: "tt0120338", title: "Titanic", year: 1997, rating: 7.9, duration: 194, lang: "English", genres: ["Drama","Romance"], overview: "A seventeen-year-old aristocrat falls in love with a kind but poor artist aboard the ill-fated R.M.S. Titanic.", poster: "/9xjZS2rlVx8yWHveTpKMTgYm5wS.jpg", backdrop: "/yDI6D5ZQh67YU4BaP7xQk0YYvYd.jpg", category: "top-rated" },
+    { id: 361748, imdb: "tt1745960", title: "Top Gun: Maverick", year: 2022, rating: 8.2, duration: 130, lang: "English", genres: ["Action","Drama"], overview: "After thirty years of service, Maverick is still pushing the envelope as a top naval aviator, training a detachment of graduates for a specialized mission.", poster: "/62HCnUTziyWcpDaBO2fi1CW3kjZ.jpg", backdrop: "/odJ4hx2g6dj2zzQ9oKAe2uitQR3.jpg", category: "trending" },
+    { id: 823464, imdb: "tt9603212", title: "Mission: Impossible — Dead Reckoning", year: 2023, rating: 7.6, duration: 163, lang: "English", genres: ["Action","Adventure","Thriller"], overview: "Ethan Hunt and his IMF team must track down a terrifying new weapon that threatens all of humanity.", poster: "/NNxYkU70HPurnNCSiCjYAmacwm.jpg", backdrop: "/628Dep6AxEtDxjZoGP78TsOjiY3.jpg", category: "trending" },
+    { id: 603692, imdb: "tt10366206", title: "John Wick: Chapter 4", year: 2023, rating: 7.7, duration: 169, lang: "English", genres: ["Action","Thriller","Crime"], overview: "John Wick uncovers a path to defeating The High Table. But before he can earn his freedom, he must face off against a new enemy.", poster: "/vZloFAK7NmvMGKE7VkF5UZH0X56.jpg", backdrop: "/7I6VUdPj6tQECNHdviJkUHD2u89.jpg", category: "trending" },
+    { id: 693134, imdb: "tt15239678", title: "Dune: Part Two", year: 2024, rating: 8.3, duration: 166, lang: "English", genres: ["Sci-Fi","Adventure","Drama"], overview: "Paul Atreides unites with Chani and the Fremen while on a path of revenge against the conspirators who destroyed his family.", poster: "/1pdfLvkbY9ohJlCjQH2cz8fu6pM.jpg", backdrop: "/xOMo8BRK7PfcJv9FKZn7Q6DjDzh.jpg", category: "trending", featured: true },
+    { id: 872585, imdb: "tt15398776", title: "Oppenheimer", year: 2023, rating: 8.1, duration: 181, lang: "English", genres: ["Drama","History","Thriller"], overview: "The story of J. Robert Oppenheimer's role in the development of the atomic bomb during World War II.", poster: "/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", backdrop: "/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg", category: "trending", featured: true },
+    // --- BOLLYWOOD ---
+    { id: 20453, imdb: "tt1187043", title: "3 Idiots", year: 2009, rating: 8.0, duration: 170, lang: "Hindi", genres: ["Comedy","Drama"], overview: "Two friends are searching for their long lost companion. They revisit their college days and recall the memories of their friend who inspired them to think differently.", poster: "/66A9MqXOyVFCssoloscw79z8Tew.jpg", backdrop: "/3xvP3J6pQYzJj9m3qX2j6v5n7p9.jpg", category: "top-rated", featured: true },
+    { id: 360814, imdb: "tt5074352", title: "Dangal", year: 2016, rating: 8.0, duration: 161, lang: "Hindi", genres: ["Drama","Sport"], overview: "Former wrestler Mahavir Singh Phogat and his two wrestler daughters struggle towards glory at the Commonwealth Games in the face of societal oppression.", poster: "/lymOoLZbjQEbTrSMK5HRkdrXMzC.jpg", backdrop: "/4BmGg2n5fR5n6g3cQk7w4t2j3wq.jpg", category: "top-rated", featured: true },
+    { id: 231617, imdb: "tt2338151", title: "PK", year: 2014, rating: 7.4, duration: 153, lang: "Hindi", genres: ["Comedy","Drama","Sci-Fi"], overview: "An alien on Earth loses the only device he can use to communicate with his spaceship. His innocent nature and child-like questions force the country to evaluate its religious beliefs.", poster: "/vQ7oVp2m5h3q5r6u3s8cE9pT1k.jpg", backdrop: "/nZg6j4m5x3y4r7u2s8q1t3p4o5.jpg", category: "top-rated" },
+    { id: 351286, imdb: "tt5971354", title: "Baahubali 2: The Conclusion", year: 2017, rating: 7.9, duration: 167, lang: "Hindi", genres: ["Action","Adventure","Drama"], overview: "When Shiva, the son of Bahubali, learns about his heritage, he begins to look for answers to his past and the fate of his kingdom.", poster: "/d4ZpmBlh5q2x8v9n3eQ1vS5t2f.jpg", backdrop: "/j3e4q5r6s7t8u9v0w1x2y3z4a5.jpg", category: "top-rated", featured: true },
+    { id: 9603, imdb: "tt0073707", title: "Sholay", year: 1975, rating: 7.6, duration: 198, lang: "Hindi", genres: ["Action","Adventure","Comedy"], overview: "After his family is murdered by a notorious bandit, a former police officer enlists the help of two outlaws to capture him.", poster: "/8z5n8k7m4j3h2g1f0e9d8c7b6a5.jpg", backdrop: "/q5r4t3w2e1r9t8y7u6i5o4p3a2.jpg", category: "top-rated" },
+    { id: 12244, imdb: "tt0169102", title: "Lagaan", year: 2001, rating: 7.4, duration: 224, lang: "Hindi", genres: ["Drama","Adventure"], overview: "The people of a small village in Victorian India stake their future on a game of cricket against their ruthless British rulers.", poster: "/w5r4t3e2w1q9a8z7x6c5v4b3n2.jpg", backdrop: "/r4t3e2w1q9a8z7x6c5v4b3n2m1.jpg", category: "top-rated" },
+    { id: 530130, imdb: "tt8108198", title: "Andhadhun", year: 2018, rating: 7.9, duration: 139, lang: "Hindi", genres: ["Crime","Thriller","Comedy"], overview: "A series of mysterious events change the life of a blind pianist, who must now report a crime that was actually never witnessed by him.", poster: "/2e9R2j5q6g3h4k5l6m7n8o9p0q.jpg", backdrop: "/3r4t5y6u7i8o9p0a1q2w3e4r5t.jpg", category: "top-rated", featured: true },
+    { id: 491413, imdb: "tt6452574", title: "Sanju", year: 2018, rating: 7.4, duration: 153, lang: "Hindi", genres: ["Drama","Comedy"], overview: "A biopic of Indian actor Sanjay Dutt, depicting his journey through his addictions, arrests, and personal struggles.", poster: "/d4q5r6s7t8u9v0w1x2y3z4a5b6.jpg", backdrop: "/e4r5t6y7u8i9o0p1a2q3w4e5r6.jpg", category: "new" },
+    { id: 71746, imdb: "tt1562871", title: "Zindagi Na Milegi Dobara", year: 2011, rating: 7.4, duration: 155, lang: "Hindi", genres: ["Comedy","Drama","Adventure"], overview: "Three friends decide to turn their fantasy vacation into a real road trip across Spain, confronting their fears and discovering life.", poster: "/f4q5r6s7t8u9v0w1x2y3z4a5b6.jpg", backdrop: "/g4r5t6y7u8i9o0p1a2q3w4e5r6.jpg", category: "new" },
+    // --- KOREAN ---
+    { id: 396535, imdb: "tt5700672", title: "Train to Busan", year: 2016, rating: 7.5, duration: 118, lang: "Korean", genres: ["Horror","Action","Thriller"], overview: "While a zombie virus breaks out in South Korea, passengers struggle to survive on the train from Seoul to Busan.", poster: "/w7ZmRBm7y9t2j3q4r5s6t7u8v9w.jpg", backdrop: "/t5x6y7z8a9b0c1d2e3f4g5h6i7j.jpg", category: "top-rated", featured: true },
+    { id: 670, imdb: "tt0364569", title: "Oldboy", year: 2003, rating: 8.0, duration: 120, lang: "Korean", genres: ["Thriller","Mystery","Action"], overview: "A man imprisoned for 15 years without knowing why seeks vengeance after being suddenly released.", poster: "/pWDtjs568Z3axqegeeo7E0V4ntt.jpg", backdrop: "/5y6z7a8b9c0d1e2f3g4h5i6j7k.jpg", category: "top-rated" },
+    { id: 11546, imdb: "tt0353969", title: "Memories of Murder", year: 2003, rating: 7.7, duration: 132, lang: "Korean", genres: ["Crime","Drama","Thriller"], overview: "In a small Korean province in 1986, two detectives investigate a series of brutal rapes and murders.", poster: "/z6y7a8b9c0d1e2f3g4h5i6j7k8.jpg", backdrop: "/a7b8c9d0e1f2g3h4i5j6k7l8m9.jpg", category: "top-rated" },
+    { id: 390634, imdb: "tt5215952", title: "The Wailing", year: 2016, rating: 7.3, duration: 156, lang: "Korean", genres: ["Horror","Thriller","Mystery"], overview: "A stranger arrives in a small village where a mysterious sickness is spreading, and a policeman must solve the mystery.", poster: "/b8c9d0e1f2g3h4i5j6k7l8m9n0.jpg", backdrop: "/c9d0e1f2g3h4i5j6k7l8m9n0o1.jpg", category: "top-rated" },
+    { id: 19964, imdb: "tt1588170", title: "I Saw the Devil", year: 2010, rating: 7.5, duration: 144, lang: "Korean", genres: ["Thriller","Horror","Crime"], overview: "A secret agent exacts revenge on the serial killer who murdered his fiancée.", poster: "/d0e1f2g3h4i5j6k7l8m9n0o1p2.jpg", backdrop: "/e1f2g3h4i5j6k7l8m9n0o1p2q3.jpg", category: "top-rated" },
+    // --- JAPANESE ---
+    { id: 372058, imdb: "tt5285044", title: "Your Name", year: 2016, rating: 8.0, duration: 106, lang: "Japanese", genres: ["Animation","Romance","Fantasy"], overview: "Two strangers find themselves linked in a bizarre way: when one sleeps, the other sees half of their day through their eyes.", poster: "/q719jXXEzOoYaps6ghDd7X0TUaC.jpg", backdrop: "/mMtUybQ6hL24FXoAdRd7Pm1d5Z6.jpg", category: "top-rated", featured: true },
+    { id: 129, imdb: "tt0245429", title: "Spirited Away", year: 2001, rating: 8.3, duration: 125, lang: "Japanese", genres: ["Animation","Fantasy","Adventure"], overview: "A young girl wanders into a world ruled by gods, witches, and spirits, where humans are changed into beasts.", poster: "/39WMItJsg5m4nMiQdYFzCIl3qQu.jpg", backdrop: "/AbNhkeP2yRS3b4ObbHFh4SS8fQ2.jpg", category: "top-rated", featured: true },
+    { id: 4935, imdb: "tt0347149", title: "Howl's Moving Castle", year: 2004, rating: 8.0, duration: 119, lang: "Japanese", genres: ["Animation","Fantasy","Adventure"], overview: "A young woman cursed with an old body seeks help from a young wizard living in a magical moving castle.", poster: "/6pZgH10jhpToPcf0uvyTCPFhWpI.jpg", backdrop: "/6dIYGf4y3QhZ3l6h5s9c1T0n7o4.jpg", category: "top-rated" },
+    { id: 155, imdb: "tt0119698", title: "Princess Mononoke", year: 1997, rating: 8.0, duration: 134, lang: "Japanese", genres: ["Animation","Adventure","Fantasy"], overview: "On a journey to find the cure for a Tatarigami's curse, Ashitaka finds himself in the middle of a war between the forest gods and Tatara.", poster: "/jHWmNr7m5jL3Mmn4WDnKvsT3oool.jpg", backdrop: "/lsc1ZcZsrLfdZcDK2JBuP5Np9d.jpg", category: "top-rated" },
+    { id: 149, imdb: "tt0094625", title: "Akira", year: 1988, rating: 7.6, duration: 124, lang: "Japanese", genres: ["Animation","Sci-Fi","Action"], overview: "A secret military project endangers Neo-Tokyo when it turns a biker gang member into a rampaging psychic psychopath.", poster: "/ngGrBzDTBSQ8d4MoBnKiPTuB6GN.jpg", backdrop: "/7tY4P3L8Qw4eRr9jR2t6Ys5t0w1.jpg", category: "top-rated" },
+    // --- EUROPEAN / WORLD CINEMA ---
+    { id: 165, imdb: "tt0317248", title: "City of God", year: 2002, rating: 8.3, duration: 130, lang: "Portuguese", genres: ["Crime","Drama"], overview: "Two boys growing up in a violent neighborhood of Rio de Janeiro take different paths: one becomes a photographer, the other a drug dealer.", poster: "/k7eYdcTLuOJ7jy4r6j5h4k3l2w1.jpg", backdrop: "/f3g4h5i6j7k8l9m0n1o2p3q4r5.jpg", category: "top-rated", featured: true },
+    { id: 142, imdb: "tt0211915", title: "Amélie", year: 2001, rating: 7.8, duration: 122, lang: "French", genres: ["Comedy","Romance","Drama"], overview: "A shy waitress in Paris concocts a plan to make others happy, but her own happiness seems elusive.", poster: "/fHzDTNnpqU8oQeZ3jM5E8c8k1a2.jpg", backdrop: "/g4h5i6j7k8l9m0n1o2p3q4r5s6.jpg", category: "top-rated" },
+    { id: 584, imdb: "tt0457430", title: "Pan's Labyrinth", year: 2006, rating: 7.7, duration: 118, lang: "Spanish", genres: ["Fantasy","Drama","War"], overview: "In the fascist Spain of 1944, a young girl escapes into a cruel, eerie but captivating fantasy world.", poster: "/h4e5i6j7k8l9m0n1o2p3q4r5s6.jpg", backdrop: "/i5j6k7l8m9n0o1p2q3r4s5t6u7.jpg", category: "top-rated", featured: true },
+    { id: 82695, imdb: "tt1675434", title: "Intouchables", year: 2011, rating: 8.2, duration: 112, lang: "French", genres: ["Comedy","Drama"], overview: "An unlikely friendship forms between a wealthy quadriplegic and his ex-con caretaker.", poster: "/j6k7l8m9n0o1p2q3r4s5t6u7v8.jpg", backdrop: "/k7l8m9n0o1p2q3r4s5t6u7v8w9.jpg", category: "top-rated", featured: true },
+    { id: 11216, imdb: "tt0095765", title: "Cinema Paradiso", year: 1988, rating: 8.2, duration: 155, lang: "Italian", genres: ["Drama","Romance"], overview: "A filmmaker recalls his childhood when he fell in love with the movies at his village's theater.", poster: "/l8m9n0o1p2q3r4s5t6u7v8w9x0.jpg", backdrop: "/m9n0o1p2q3r4s5t6u7v8w9x0y1.jpg", category: "top-rated" },
+    { id: 625, imdb: "tt0363163", title: "Downfall", year: 2004, rating: 7.7, duration: 156, lang: "German", genres: ["Drama","War","History"], overview: "Traudl Junge, the final secretary of Adolf Hitler, recounts his final days in his Berlin bunker.", poster: "/n0o1p2q3r4s5t6u7v8w9x0y1z2.jpg", backdrop: "/o1p2q3r4s5t6u7v8w9x0y1z2a3.jpg", category: "top-rated" },
+    { id: 637, imdb: "tt0118799", title: "Life Is Beautiful", year: 1997, rating: 8.4, duration: 116, lang: "Italian", genres: ["Comedy","Drama","Romance"], overview: "A Jewish-Italian bookshop owner uses his imagination to shield his son from the horrors of a concentration camp.", poster: "/74hLDKjD5aZ2x0L3v8E5zU5XgO9.jpg", backdrop: "/b0Re0eI72D874J2EC6W7un3vLKK.jpg", category: "top-rated", featured: true },
+    // --- ANIMATION ---
+    { id: 8587, imdb: "tt0110357", title: "The Lion King", year: 1994, rating: 8.2, duration: 88, lang: "English", genres: ["Animation","Adventure","Drama"], overview: "A lion prince flees his kingdom after the death of his father, only to return years later to reclaim his throne.", poster: "/sKCr78MXSLixwmZ8DyJLrpNuudR.jpg", backdrop: "/wXsQDC2Q3m0xE16m9N3w8K4y2p5.jpg", category: "top-rated", featured: true },
+    { id: 862, imdb: "tt0114709", title: "Toy Story", year: 1995, rating: 7.9, duration: 81, lang: "English", genres: ["Animation","Adventure","Comedy"], overview: "A cowboy doll is profoundly threatened when a new spaceman action figure supplants him as top toy in a boy's room.", poster: "/uXDfjJbdP4ijPg5Tw3Yk6SAj5q5.jpg", backdrop: "/3RMrj5Cv8vHceY4rFpE0qQ4Q6q5.jpg", category: "top-rated" },
+    { id: 354912, imdb: "tt2380307", title: "Coco", year: 2017, rating: 8.1, duration: 105, lang: "English", genres: ["Animation","Adventure","Comedy"], overview: "Aspiring musician Miguel enters the Land of the Dead to find his great-great-grandfather, a legendary singer.", poster: "/eKi8dIrr8vo3C7xd7O5xy6AZsT7.jpg", backdrop: "/ask7TJY0xX6J6c7eW8o2Q4n5m6.jpg", category: "top-rated" },
+    { id: 10681, imdb: "tt0910970", title: "WALL·E", year: 2008, rating: 8.1, duration: 98, lang: "English", genres: ["Animation","Adventure","Sci-Fi"], overview: "In the distant future, a small waste-collecting robot inadvertently embarks on a space journey that will decide the fate of mankind.", poster: "/hbhFnRzzg6ZDmm8YAmxBnQpQXhH.jpg", backdrop: "/bqXyM4m5h6j7k8l9m0n1o2p3q4.jpg", category: "top-rated", featured: true },
+    { id: 9806, imdb: "tt0317705", title: "The Incredibles", year: 2004, rating: 7.7, duration: 115, lang: "English", genres: ["Animation","Action","Adventure"], overview: "A family of undercover superheroes, while trying to live the quiet suburban life, are forced into action to save the world.", poster: "/2LqaLgk4ZJ3m5q4t1p6wY6e7z8.jpg", backdrop: "/q4r5s6t7u8v9w0x1y2z3a4b5c6.jpg", category: "top-rated" },
+    { id: 12, imdb: "tt0266543", title: "Finding Nemo", year: 2003, rating: 7.8, duration: 100, lang: "English", genres: ["Animation","Adventure","Comedy"], overview: "After his son is captured in the Great Barrier Reef, a timid clownfish sets out on a journey to bring him home.", poster: "/eHuGQ10FUzK1mdOY69wFbf5SkQY.jpg", backdrop: "/cKw4XGzKVUF6vAFlNwlhtlUbg9Y.jpg", category: "top-rated" },
+    // --- MORE HORROR ---
+    { id: 138843, imdb: "tt3065204", title: "The Conjuring 2", year: 2016, rating: 7.0, duration: 134, lang: "English", genres: ["Horror","Mystery","Thriller"], overview: "Ed and Lorraine Warren travel to North London to help a single mother raising four children alone in a house plagued by malicious spirits.", poster: "/3VXU2OdZcZmUq6m5y5r7e8n9p0.jpg", backdrop: "/w4x5y6z7a8b9c0d1e2f3g4h5i6.jpg", category: "new" },
+    { id: 49018, imdb: "tt1591095", title: "Insidious", year: 2010, rating: 6.8, duration: 103, lang: "English", genres: ["Horror","Thriller","Mystery"], overview: "A family looks to prevent evil spirits from trapping their comatose child in a realm called The Further.", poster: "/5y6z7a8b9c0d1e2f3g4h5i6j7k.jpg", backdrop: "/x6y7z8a9b0c1d2e3f4g5h6i7j8.jpg", category: "new" },
+    { id: 75527, imdb: "tt2024432", title: "Sinister", year: 2012, rating: 6.7, duration: 110, lang: "English", genres: ["Horror","Mystery","Thriller"], overview: "Washed-up true-crime writer Ellison Oswalt finds a box of super 8 home movies that suggest the murder he's currently researching is the work of a serial killer.", poster: "/7a8b9c0d1e2f3g4h5i6j7k8l9.jpg", backdrop: "/y7z8a9b0c1d2e3f4g5h6i7j8k9.jpg", category: "new" },
+    { id: 205221, imdb: "tt2772100", title: "The Babadook", year: 2014, rating: 6.8, duration: 94, lang: "English", genres: ["Horror","Drama"], overview: "A single mother and her child fall into a deep well of paranoia when an eerie children's book titled 'Mister Babadook' manifests in their home.", poster: "/8b9c0d1e2f3g4h5i6j7k8l9m0.jpg", backdrop: "/z8a9b0c1d2e3f4g5h6i7j8k9l0.jpg", category: "new" },
+    { id: 522478, imdb: "tt6857112", title: "Us", year: 2019, rating: 6.7, duration: 116, lang: "English", genres: ["Horror","Thriller","Mystery"], overview: "A family's serene beach vacation turns to chaos when their doppelgängers appear and begin to terrorize them.", poster: "/9c0d1e2f3g4h5i6j7k8l9m0n1.jpg", backdrop: "/a9b0c1d2e3f4g5h6i7j8k9l0m1.jpg", category: "new" },
+    { id: 521844, imdb: "tt8772262", title: "Midsommar", year: 2019, rating: 7.0, duration: 148, lang: "English", genres: ["Horror","Drama","Mystery"], overview: "A couple travels to Northern Europe to visit a rural hometown's fabled mid-summer festival, which turns into an idyllic nightmare.", poster: "/0d1e2f3g4h5i6j7k8l9m0n1o2.jpg", backdrop: "/b0c1d2e3f4g5h6i7j8k9l0m1n2.jpg", category: "new" },
+    // --- MORE COMEDY ---
+    { id: 62652, imdb: "tt1232829", title: "21 Jump Street", year: 2012, rating: 6.9, duration: 109, lang: "English", genres: ["Comedy","Action"], overview: "Two underachieving cops are sent back to high school to blend in and bring down a synthetic drug ring.", poster: "/1e2f3g4h5i6j7k8l9m0n1o2p3.jpg", backdrop: "/c1d2e3f4g5h6i7j8k9l0m1n2o3.jpg", category: "new" },
+    { id: 201608, imdb: "tt1723121", title: "We're the Millers", year: 2013, rating: 6.6, duration: 110, lang: "English", genres: ["Comedy","Crime"], overview: "A veteran pot dealer creates a fake family as part of his plan to move a huge shipment of weed into the U.S. from Mexico.", poster: "/2f3g4h5i6j7k8l9m0n1o2p3q4.jpg", backdrop: "/d2e3f4g5h6i7j8k9l0m1n2o3p4.jpg", category: "new" },
+    { id: 81975, imdb: "tt1637727", title: "Ted", year: 2012, rating: 6.4, duration: 106, lang: "English", genres: ["Comedy","Fantasy"], overview: "A man's childhood wish for his teddy bear to come to life comes true, but the bear remains a slacker well into adulthood.", poster: "/3g4h5i6j7k8l9m0n1o2p3q4r5.jpg", backdrop: "/e3f4g5h6i7j8k9l0m1n2o3p4q5.jpg", category: "new" },
+    { id: 8467, imdb: "tt0109686", title: "Dumb and Dumber", year: 1994, rating: 6.6, duration: 107, lang: "English", genres: ["Comedy","Adventure"], overview: "Two dim-witted best friends embark on a cross-country road trip to return a briefcase full of money to its owner.", poster: "/4h5i6j7k8l9m0n1o2p3q4r5s6.jpg", backdrop: "/f4g5h6i7j8k9l0m1n2o3p4q5r6.jpg", category: "new" },
+    // --- MORE NEW RELEASES ---
+    { id: 346698, imdb: "tt1517268", title: "Barbie", year: 2023, rating: 7.2, duration: 114, lang: "English", genres: ["Comedy","Adventure","Fantasy"], overview: "Barbie and Ken venture into the real world and discover the joys and perils of living among humans.", poster: "/iuFNMS8U5cb6xfzi51Dbkovj7vM.jpg", backdrop: "/nHf61UzkfFno5X1ofIhugCPus2R.jpg", category: "trending", featured: true },
+    { id: 447365, imdb: "tt6791350", title: "Guardians of the Galaxy Vol. 3", year: 2023, rating: 8.0, duration: 150, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "Peter Quill rallies his team to defend the universe and protect one of their own.", poster: "/r2J02Z2OpNTctfOSN1Ydgii51I3.jpg", backdrop: "/5YZbUmjbMa3ClvSW1Wj3D6X5wC4.jpg", category: "trending" },
+    { id: 76600, imdb: "tt1630029", title: "Avatar: The Way of Water", year: 2022, rating: 7.6, duration: 192, lang: "English", genres: ["Sci-Fi","Adventure","Action"], overview: "Jake Sully lives with his newfound family formed on the planet of Pandora.", poster: "/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg", backdrop: "/s16H6tpK2utvwDtzZ8Qy4qm5Emw.jpg", category: "new", featured: true },
+    { id: 502356, imdb: "tt6718170", title: "The Super Mario Bros. Movie", year: 2023, rating: 7.7, duration: 92, lang: "English", genres: ["Animation","Family","Adventure"], overview: "Mario and Luigi are transported to a magical world where they must save the Mushroom Kingdom.", poster: "/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg", backdrop: "/nLBRD7UPR6GjmWQp4ASqCTjQI8F.jpg", category: "new" },
+    { id: 931832, imdb: "tt5537000", title: "Killers of the Flower Moon", year: 2023, rating: 7.5, duration: 206, lang: "English", genres: ["Drama","Crime","History"], overview: "When oil is discovered in 1920s Oklahoma under Osage Nation land, the Osage people are murdered one by one.", poster: "/dB6Krk806zeqd0YNp2ngQ9zXteH.jpg", backdrop: "/1X5vUauXyyl6sz81lRp6HtLEW4i.jpg", category: "trending" },
+    { id: 670292, imdb: "tt0439572", title: "The Flash", year: 2023, rating: 6.9, duration: 144, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "Barry Allen uses his super speed to change the past, but his attempt to save his family creates a future without heroes.", poster: "/rLb2cwF3Pazuxaj0sRXQ037lGIw.jpg", backdrop: "/jsoXmKmRVrLqf5jmjOPffvE4tg4.jpg", category: "new" },
+    { id: 76241, imdb: "tt9409614", title: "Migration", year: 2023, rating: 7.6, duration: 92, lang: "English", genres: ["Animation","Family","Comedy"], overview: "A family of ducks tries to convince their overprotective father to go on the vacation of a lifetime.", poster: "/ldfCF9RhR40mppkzmftxapaHeTo.jpg", backdrop: "/qhdDSnsfUkHmbYtkBUm7Zlkc0eY.jpg", category: "new" },
+    { id: 616037, imdb: "tt10676048", title: "The Marvels", year: 2023, rating: 6.3, duration: 105, lang: "English", genres: ["Action","Adventure","Sci-Fi"], overview: "Carol Danvers gets her powers entangled with those of Kamala Khan and Monica Rambeau.", poster: "/Ag3D9qXjhJ2FUkrlJ0Cv1pgxqYQ.jpg", backdrop: "/9OSpKr4Nas4rHjGaGNj4NT5Xm4b.jpg", category: "new" },
+    { id: 1003101, imdb: "tt6166392", title: "Wonka", year: 2023, rating: 7.0, duration: 116, lang: "English", genres: ["Comedy","Family","Fantasy"], overview: "Willy Wonka, chock-full of ideas and determined to change the world one delectable bite at a time, proves that the best things in life begin with a dream.", poster: "/qhb1qOil3bV2Yz4M8cQ7KkHLeLD.jpg", backdrop: "/yzQDqTRh4qTQ88twYMTVjfdQAqQ.jpg", category: "new" },
+    { id: 829280, imdb: "tt0441773", title: "Rise of the Guardians", year: 2012, rating: 7.7, duration: 97, lang: "English", genres: ["Animation","Family","Fantasy"], overview: "When the evil spirit Pitch launches an assault on Earth, the immortal Guardians must join forces to protect the hopes and dreams of children.", poster: "/xnopI5XQy7AhZpESgLlVeYmomYr.jpg", backdrop: "/uQGMmPztcYHhxaYp9UOFjf9FihA.jpg", category: "top-rated" },
+  ];
+
+  // Remove duplicate IDs (keep first occurrence)
+  const seen = new Set();
+  const uniqueMovies = movies.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+
+  // ============================================================
+  // STREAMING SOURCES
+  // ============================================================
+  const SOURCES = {
+    cinezo: (m) => `https://cinezo.live/embed/movie/${m.id}`,
+    cinezo_imdb: (m) => `https://cinezo.live/embed/movie/${m.imdb}`,
+    vidsrc: (m) => `https://vidsrc.to/embed/movie/${m.id}`,
+    vidsrcxyz: (m) => `https://vidsrc.xyz/embed/movie/${m.id}`,
+    vidsrcpro: (m) => `https://vidsrc.pro/embed/movie/${m.id}`,
+    "2embed": (m) => `https://www.2embed.cc/embed/${m.id}`,
+    embedsu: (m) => `https://embed.su/embed/movie/${m.id}`,
+    smashy: (m) => `https://embed.smashystream.com/movie/${m.id}`,
+    embedsito: (m) => `https://embedsito.com/embed/movie/${m.id}`,
+    multiembed: (m) => `https://multiembed.mov/?video_id=${m.id}&tmdb=1`,
+  };
+
+  let myList = new Set(JSON.parse(localStorage.getItem('lumiere_list') || '[]'));
+  const saveList = () => localStorage.setItem('lumiere_list', JSON.stringify([...myList]));
+
+  // Update movie count badge
+  document.getElementById('movieCount').textContent = `${uniqueMovies.length} Films`;
+
+  // ============================================================
+  // THREE.JS BACKGROUND
+  // ============================================================
+  const canvas = document.getElementById('webgl-bg');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.z = 50;
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const PCOUNT = 4000;
+  const positions = new Float32Array(PCOUNT * 3);
+  const colors = new Float32Array(PCOUNT * 3);
+  const sizes = new Float32Array(PCOUNT);
+  const phases = new Float32Array(PCOUNT);
+  const cA = new THREE.Color('#ff3366'), cB = new THREE.Color('#00d9ff'), cC = new THREE.Color('#ffb800'), cD = new THREE.Color('#a855f7');
+
+  for (let i = 0; i < PCOUNT; i++) {
+    const r = 30 + Math.random() * 70;
+    const t = Math.random() * Math.PI * 2;
+    const p = Math.acos(2 * Math.random() - 1);
+    positions[i*3] = r * Math.sin(p) * Math.cos(t);
+    positions[i*3+1] = r * Math.sin(p) * Math.sin(t);
+    positions[i*3+2] = r * Math.cos(p);
+    let c; const rnd = Math.random();
+    if (rnd < 0.35) c = cA.clone(); else if (rnd < 0.65) c = cB.clone(); else if (rnd < 0.85) c = cC.clone(); else c = cD.clone();
+    c.lerp(new THREE.Color('#ffffff'), Math.random() * 0.3);
+    colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
+    sizes[i] = Math.max(0.5, Math.random() * 2.5 + 0.5);
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+
+  const pMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uPixelRatio: { value: renderer.getPixelRatio() } },
+    vertexShader: `
+      attribute vec3 aColor; attribute float aSize; attribute float aPhase;
+      varying vec3 vColor; varying float vAlpha;
+      uniform float uTime; uniform float uPixelRatio;
+      void main() {
+        vColor = aColor; vec3 pos = position;
+        pos.y += sin(uTime * 0.3 + aPhase) * 2.0;
+        pos.x += cos(uTime * 0.2 + aPhase) * 1.5;
+        pos.z += sin(uTime * 0.25 + aPhase * 0.7) * 1.0;
+        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+        gl_PointSize = aSize * uPixelRatio * (250.0 / max(0.1, -mv.z));
+        gl_Position = projectionMatrix * mv;
+        vAlpha = 0.7 + 0.3 * sin(uTime * 1.5 + aPhase);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor; varying float vAlpha;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5; float d = length(c);
+        if (d > 0.5) discard;
+        float a = 1.0 - smoothstep(0.0, 0.5, d); a *= a;
+        gl_FragColor = vec4(vColor, a * vAlpha * 0.85);
+      }
+    `,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+
+  const particles = new THREE.Points(geo, pMat);
+  scene.add(particles);
+
+  const shards = new THREE.Group();
+  for (let i = 0; i < 8; i++) {
+    const g = i % 3 === 0 ? new THREE.IcosahedronGeometry(Math.max(0.5, 1 + Math.random() * 1.5), 0)
+           : i % 3 === 1 ? new THREE.OctahedronGeometry(Math.max(0.5, 0.8 + Math.random() * 1.2), 0)
+           : new THREE.TetrahedronGeometry(Math.max(0.5, 1 + Math.random() * 1.3), 0);
+    const m = new THREE.MeshBasicMaterial({ color: i % 4 === 0 ? 0xff3366 : i % 4 === 1 ? 0x00d9ff : i % 4 === 2 ? 0xffb800 : 0xa855f7, wireframe: true, transparent: true, opacity: 0.3 });
+    const mesh = new THREE.Mesh(g, m);
+    mesh.position.set((Math.random()-0.5)*80, (Math.random()-0.5)*60, (Math.random()-0.5)*40-20);
+    mesh.userData = { rs: { x: (Math.random()-0.5)*0.01, y: (Math.random()-0.5)*0.01, z: (Math.random()-0.5)*0.005 }, fp: Math.random()*Math.PI*2, fs: 0.3+Math.random()*0.5, by: mesh.position.y };
+    shards.add(mesh);
+  }
+  scene.add(shards);
+
+  const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+  window.addEventListener('mousemove', (e) => { mouse.tx = (e.clientX/window.innerWidth-0.5)*2; mouse.ty = (e.clientY/window.innerHeight-0.5)*2; });
+  const clock = new THREE.Clock();
+  function animate() {
+    const t = clock.getElapsedTime();
+    pMat.uniforms.uTime.value = t;
+    mouse.x += (mouse.tx - mouse.x) * 0.04; mouse.y += (mouse.ty - mouse.y) * 0.04;
+    particles.rotation.y = t * 0.04 + mouse.x * 0.3; particles.rotation.x = mouse.y * 0.15;
+    shards.children.forEach(s => { s.rotation.x += s.userData.rs.x; s.rotation.y += s.userData.rs.y; s.rotation.z += s.userData.rs.z; s.position.y = s.userData.by + Math.sin(t * s.userData.fs + s.userData.fp) * 3; });
+    shards.rotation.y = t * 0.02 + mouse.x * 0.1;
+    camera.position.x = mouse.x * 4; camera.position.y = -mouse.y * 3; camera.lookAt(scene.position);
+    renderer.render(scene, camera); requestAnimationFrame(animate);
+  }
+  animate();
+  window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); pMat.uniforms.uPixelRatio.value = renderer.getPixelRatio(); });
+
+  // ============================================================
+  // HERO CAROUSEL
+  // ============================================================
+  const featured = uniqueMovies.filter(m => m.featured);
+  let heroIdx = 0, heroInterval;
+
+  function renderHero() {
+    const m = featured[heroIdx];
+    document.getElementById('heroBg').style.backgroundImage = `url(${backdropUrl(m.backdrop)})`;
+    document.getElementById('heroPoster').src = posterUrl(m.poster);
+    document.getElementById('heroTitle').textContent = m.title;
+    document.getElementById('heroRating').textContent = m.rating.toFixed(1);
+    document.getElementById('heroYear').textContent = m.year;
+    document.getElementById('heroDuration').textContent = `${m.duration} min`;
+    document.getElementById('heroGenres').textContent = m.genres.join(' · ');
+    document.getElementById('heroLang').textContent = m.lang;
+    document.getElementById('heroDesc').textContent = m.overview;
+    document.getElementById('heroPlayBtn').onclick = () => openPlayer(m);
+    document.querySelectorAll('.hero-indicator').forEach((ind, i) => ind.classList.toggle('active', i === heroIdx));
+  }
+
+  function renderHeroIndicators() {
+    const c = document.getElementById('heroIndicators');
+    c.innerHTML = '';
+    featured.forEach((_, i) => {
+      const ind = document.createElement('div');
+      ind.className = 'hero-indicator' + (i === 0 ? ' active' : '');
+      ind.onclick = () => { heroIdx = i; renderHero(); resetHeroInterval(); };
+      c.appendChild(ind);
+    });
+  }
+
+  function resetHeroInterval() {
+    clearInterval(heroInterval);
+    heroInterval = setInterval(() => { heroIdx = (heroIdx + 1) % featured.length; renderHero(); }, 7000);
+  }
+
+  const heroCard = document.getElementById('heroCard');
+  const heroCardInner = heroCard.querySelector('.hero-card-inner');
+  heroCard.addEventListener('mousemove', (e) => {
+    const r = heroCard.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    heroCardInner.style.transform = `rotateY(${x * 15}deg) rotateX(${-y * 15}deg) translateZ(20px)`;
+  });
+  heroCard.addEventListener('mouseleave', () => heroCardInner.style.transform = 'rotateY(0) rotateX(0) translateZ(0)');
+  heroCard.addEventListener('click', () => openPlayer(featured[heroIdx]));
+  document.getElementById('heroDetailsBtn').addEventListener('click', () => openPlayer(featured[heroIdx]));
+  document.getElementById('heroShuffleBtn').addEventListener('click', () => shuffleMovie());
+
+  renderHeroIndicators(); renderHero(); resetHeroInterval();
+
+  // ============================================================
+  // MOVIE CARDS WITH SPOTLIGHT EFFECT
+  // ============================================================
+  function createCard(m) {
+    const card = document.createElement('div');
+    card.className = 'movie-card';
+    card.dataset.id = m.id;
+    const saved = myList.has(m.id) ? 'saved' : '';
+    card.innerHTML = `
+      <img class="movie-card-poster" src="${posterUrl(m.poster)}" alt="${m.title}" loading="lazy" onerror="this.src='https://picsum.photos/seed/${m.id}/500/750'">
+      <div class="movie-card-genre">${m.genres[0]}</div>
+      <div class="movie-card-lang">${m.lang}</div>
+      <button class="movie-card-bookmark ${saved}" data-id="${m.id}" aria-label="Save"><i class="fa-solid fa-bookmark"></i></button>
+      <div class="movie-card-play"><i class="fa-solid fa-play"></i></div>
+      <div class="movie-card-overlay">
+        <div class="movie-card-title">${m.title}</div>
+        <div class="movie-card-meta">
+          <span class="movie-card-rating"><i class="fa-solid fa-star"></i> ${m.rating.toFixed(1)}</span>
+          <span>${m.year}</span><span>${m.duration}m</span>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.movie-card-bookmark')) return;
+      openPlayer(m);
+    });
+    card.querySelector('.movie-card-bookmark').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleBookmark(m.id, e.currentTarget);
+    });
+    attachTilt(card);
+    return card;
+  }
+
+  function attachTilt(card) {
+    card.addEventListener('mousemove', (e) => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      card.style.transform = `perspective(800px) rotateX(${-y * 18}deg) rotateY(${x * 18}deg) scale(1.05) translateZ(30px)`;
+      card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+      card.style.setProperty('--my', `${e.clientY - r.top}px`);
+    });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+  }
+
+  function toggleBookmark(id, btn) {
+    if (myList.has(id)) { myList.delete(id); btn.classList.remove('saved'); showToast('Removed from your list', 'minus'); }
+    else { myList.add(id); btn.classList.add('saved'); showToast('Added to your list', 'check'); }
+    saveList();
+  }
+
+  function renderGrid(gridId, list) {
+    const grid = document.getElementById(gridId);
+    grid.innerHTML = '';
+    if (list.length === 0) {
+      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-muted);font-size:14px;"><i class="fa-solid fa-film" style="font-size:32px;opacity:0.4;margin-bottom:12px;display:block;"></i>No films match this filter.</div>`;
+      return;
+    }
+    list.forEach(m => grid.appendChild(createCard(m)));
+  }
+
+  // ============================================================
+  // FILTERING LOGIC
+  // ============================================================
+  let currentGenre = 'all';
+  let currentLang = 'all';
+
+  function getFilteredMovies() {
+    return uniqueMovies.filter(m => {
+      const genreMatch = currentGenre === 'all' || m.genres.includes(currentGenre);
+      const langMatch = currentLang === 'all' || m.lang === currentLang;
+      return genreMatch && langMatch;
+    });
+  }
+
+  function renderAllGrids() {
+    const pool = getFilteredMovies();
+    renderGrid('trendingGrid', pool.filter(m => m.category === 'trending'));
+    renderGrid('newReleasesGrid', pool.filter(m => m.category === 'new'));
+    renderGrid('topRatedGrid', pool.filter(m => m.category === 'top-rated').sort((a, b) => b.rating - a.rating));
+  }
+
+  renderAllGrids();
+
+  // Genre pills
+  document.querySelectorAll('.genre-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.genre-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentGenre = pill.dataset.genre;
+      renderAllGrids();
+    });
+  });
+
+  // Language pills
+  document.querySelectorAll('.lang-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentLang = pill.dataset.lang;
+      renderAllGrids();
+    });
+  });
+
+  // Nav links
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      const filter = link.dataset.filter;
+      const newSec = document.getElementById('newReleasesGrid').parentElement;
+      const topSec = document.getElementById('topRatedGrid').parentElement;
+      if (filter === 'mylist') {
+        renderGrid('trendingGrid', uniqueMovies.filter(m => myList.has(m.id)));
+        newSec.style.display = 'none';
+        topSec.style.display = 'none';
+        return;
+      }
+      newSec.style.display = '';
+      topSec.style.display = '';
+      if (filter === 'all') {
+        renderAllGrids();
+      } else {
+        const pool = getFilteredMovies().filter(m => m.category === filter);
+        renderGrid('trendingGrid', pool);
+        renderGrid('newReleasesGrid', pool);
+        renderGrid('topRatedGrid', pool);
+      }
+    });
+  });
+
+  // ============================================================
+  // PLAYER
+  // ============================================================
+  const playerModal = document.getElementById('playerModal');
+  const playerFrame = document.getElementById('playerFrame');
+  const playerLoading = document.getElementById('playerLoading');
+  let currentMovie = null;
+  let currentSource = 'cinezo';
+
+  function openPlayer(m) {
+    currentMovie = m;
+    document.getElementById('playerTitle').textContent = m.title;
+    document.getElementById('playerSub').textContent = `${m.year} · ${m.lang} · ${m.genres.join(' · ')} · ${m.rating}★`;
+    loadSource(currentSource);
+    playerModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function loadSource(src) {
+    currentSource = src;
+    playerLoading.style.display = 'flex';
+    playerFrame.src = SOURCES[src](currentMovie);
+    playerFrame.onload = () => { setTimeout(() => playerLoading.style.display = 'none', 500); };
+    setTimeout(() => { if (playerLoading.style.display !== 'none') playerLoading.style.display = 'none'; }, 4000);
+    document.querySelectorAll('.source-btn').forEach(b => b.classList.toggle('active', b.dataset.source === src));
+  }
+
+  document.querySelectorAll('.source-btn').forEach(btn => btn.addEventListener('click', () => loadSource(btn.dataset.source)));
+  document.getElementById('playerClose').addEventListener('click', closePlayer);
+  playerModal.addEventListener('click', (e) => { if (e.target === playerModal) closePlayer(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && playerModal.classList.contains('active')) closePlayer(); });
+
+  function closePlayer() {
+    playerModal.classList.remove('active');
+    playerFrame.src = '';
+    document.body.style.overflow = '';
+  }
+
+  // ============================================================
+  // SHUFFLE
+  // ============================================================
+  function shuffleMovie() {
+    const pool = getFilteredMovies();
+    if (pool.length === 0) return;
+    const random = pool[Math.floor(Math.random() * pool.length)];
+    openPlayer(random);
+    showToast(`Now playing: ${random.title}`, 'check');
+  }
+
+  // ============================================================
+  // SEARCH
+  // ============================================================
+  const searchInput = document.getElementById('searchInput');
+  const searchResults = document.getElementById('searchResults');
+
+  searchInput.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) { searchResults.classList.remove('active'); return; }
+    const results = uniqueMovies.filter(m =>
+      m.title.toLowerCase().includes(q) ||
+      m.genres.some(g => g.toLowerCase().includes(q)) ||
+      m.lang.toLowerCase().includes(q) ||
+      String(m.year).includes(q)
+    );
+    renderSearchResults(results, q);
+  });
+
+  function renderSearchResults(results, q) {
+    if (results.length === 0) {
+      searchResults.innerHTML = `<div class="search-empty">No films found for "${q}"</div>`;
+    } else {
+      searchResults.innerHTML = results.slice(0, 12).map(m => `
+        <div class="search-result-item" data-id="${m.id}">
+          <img src="${posterUrl(m.poster, 'w92')}" onerror="this.src='https://picsum.photos/seed/${m.id}/92/138'">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${m.title}</div>
+            <div style="font-size:12px;color:var(--text-muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <span style="color:var(--accent-3);"><i class="fa-solid fa-star" style="font-size:10px;"></i> ${m.rating}</span>
+              <span>${m.year}</span><span>${m.lang}</span><span>${m.genres.join(' · ')}</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-play" style="color:var(--accent);font-size:12px;"></i>
+        </div>
+      `).join('');
+      searchResults.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const m = uniqueMovies.find(x => x.id === parseInt(item.dataset.id));
+          if (m) { openPlayer(m); searchResults.classList.remove('active'); searchInput.value = ''; }
+        });
+      });
+    }
+    searchResults.classList.add('active');
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-box') && !e.target.closest('.search-results')) searchResults.classList.remove('active');
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); searchInput.focus(); }
+  });
+
+  // ============================================================
+  // DOCK
+  // ============================================================
+  const dock = document.getElementById('dock');
+  const dockItems = dock.querySelectorAll('.dock-item');
+  dockItems.forEach(item => {
+    item.addEventListener('mousemove', (e) => {
+      const r = item.getBoundingClientRect();
+      const c = r.left + r.width / 2;
+      const d = Math.abs(e.clientX - c);
+      const s = Math.max(1, 1.6 - (d / 120) * 0.7);
+      item.style.transform = `translateY(${-((s-1)*18)}px) scale(${s})`;
+    });
+    item.addEventListener('mouseleave', () => { item.style.transform = ''; });
+    item.addEventListener('click', () => {
+      dockItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const label = item.dataset.label;
+      if (label === 'Search') searchInput.focus();
+      else if (label === 'Discover') window.scrollTo({ top: 0, behavior: 'smooth' });
+      else if (label === 'Shuffle') shuffleMovie();
+      else if (label === 'Trending') document.getElementById('trendingGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else if (label === 'My List') document.querySelector('[data-filter="mylist"]').click();
+    });
+  });
+
+  // ============================================================
+  // TOAST + MISC
+  // ============================================================
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+  let toastTimeout;
+  function showToast(msg, type = 'check') {
+    toastText.textContent = msg;
+    const icon = toast.querySelector('i');
+    icon.className = type === 'check' ? 'fa-solid fa-circle-check' : type === 'shuffle' ? 'fa-solid fa-shuffle' : 'fa-solid fa-circle-minus';
+    icon.style.color = type === 'minus' ? '#ff5f57' : type === 'shuffle' ? '#a855f7' : '#28c840';
+    toast.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('topBar').classList.toggle('scrolled', window.scrollY > 30);
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  document.querySelector('.traffic-lights .red').addEventListener('click', () => showToast('Lumière is running smoothly', 'check'));
+  document.querySelector('.traffic-lights .yellow').addEventListener('click', () => showToast('Minimizing is so last century', 'check'));
+  document.querySelector('.traffic-lights .green').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+</script>
+</body>
+</html>
